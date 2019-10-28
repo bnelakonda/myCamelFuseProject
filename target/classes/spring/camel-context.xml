@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd        http://camel.apache.org/schema/spring       http://camel.apache.org/schema/spring/camel-spring.xsd">
+    <camelContext id="camel"
+        xmlns="http://camel.apache.org/schema/spring" xmlns:ftc="urn:oecd:ties:fatca:v2">
+        <route id="simple-route">
+            <from id="fileFrom" uri="file:/Users/bharathnelakonda/Work/testFuse1/inbound"/>
+            <log id="route-log" message="File Received: >>>${in.headers} "/>
+            <split id="_split1">
+                <xpath>//ftc:FATCA_OECD</xpath>
+                <to id="_to1" uri="file:/Users/bharathnelakonda/Work/testFuse1/inbound/fatcaxml?fileName=${in.headers.CamelFilename}_fatca.xml"/>
+                <log id="route-log1" message="Fatca xml extracted: >>> ${in.headers.CamelFilename}_fatca.xml"/>
+            </split>
+        </route>
+        <route id="_route1">
+            <from id="fileFrom1" uri="file:/Users/bharathnelakonda/Work/testFuse1/inbound/fatcaxml?noop=false"/>
+            <doTry id="_doTry1">
+                <to id="_to2" uri="validator:file:/Users/bharathnelakonda/Work/testFuse1/schemas/FatcaXML_v2.0.xsd"/>
+                <log id="validate-log" message="Validation Complete. "/>
+                <to id="_to3" uri="file:/Users/bharathnelakonda/Work/testFuse1/datavalid"/>
+                <log id="validationSuccess-log" message="Validation Successful for file: ${in.headers.CamelFilename}"/>
+                <doCatch id="_doCatch1">
+                    <exception>org.apache.camel.ValidationException</exception>
+                    <to id="_to4" uri="file:/Users/bharathnelakonda/Work/testFuse1/datainvalid"/>
+                    <log id="exception-log" message="Exception: >>>${exception.message} "/>
+                </doCatch>
+            </doTry>
+        </route>
+        <route id="_route2">
+            <from id="fileValid" uri="file:/Users/bharathnelakonda/Work/testFuse1/datavalid?noop=false"/>
+            <split id="_split2">
+                <xpath>//ftc:FATCA_OECD/ftc:FATCA</xpath>
+                <to id="_toKafka" uri="kafka:PLAINTEXT_HOST://ec2-3-90-14-174.compute-1.amazonaws.com:29092?topic=dvrtopic1&amp;brokers=PLAINTEXT://ec2-3-90-14-174.compute-1.amazonaws.com:29092"/>
+            </split>
+        </route>
+    </camelContext>
+</beans>
